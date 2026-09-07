@@ -1,0 +1,12 @@
+.git
+.github
+.env
+.env.*
+node_modules
+npm-debug.log*
+coverage
+dist
+Dockerfile*
+*.pem
+*.key
+*.crt
