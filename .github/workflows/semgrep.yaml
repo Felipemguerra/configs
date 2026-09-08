@@ -26,7 +26,7 @@ jobs:
       - name: Run Semgrep
         env:
           SEMGREP_CONFIG: ${{ inputs.config }}
-        run: semgrep scan --config "$SEMGREP_CONFIG" --sarif --output semgrep.sarif --error
+        run: semgrep scan --config "$SEMGREP_CONFIG" --sarif --output semgrep.sarif --error --verbose
 
       - name: Upload Semgrep results
         if: always()
