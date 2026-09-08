@@ -1,0 +1,35 @@
+name: Semgrep
+
+on:
+  workflow_call:
+    inputs:
+      config:
+        description: Semgrep registry ruleset or local configuration path.
+        required: false
+        type: string
+        default: p/default
+
+permissions:
+  contents: read
+  security-events: write
+
+jobs:
+  scan:
+    name: Semgrep scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Semgrep
+        run: python -m pip install --disable-pip-version-check semgrep
+
+      - name: Run Semgrep
+        env:
+          SEMGREP_CONFIG: ${{ inputs.config }}
+        run: semgrep scan --config "$SEMGREP_CONFIG" --sarif --output semgrep.sarif --error
+
+      - name: Upload Semgrep results
+        if: always()
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: semgrep.sarif
