@@ -14,14 +14,14 @@ pull request review.
 
 | Need | Use | Where it belongs in a project |
 | --- | --- | --- |
-| Scan commits for credentials | [Reusable secret scanning workflow](actions/secret-scan.yaml) | Called from `.github/workflows/security.yaml` |
-| Add a general CI security gate | [Reusable security baseline](actions/security-baseline.yaml) | Called from `.github/workflows/security.yaml` |
-| Scan source code with Semgrep CLI | [Reusable Semgrep workflow](actions/semgrep.yaml) | Called from `.github/workflows/security.yaml` |
+| Scan commits for credentials | [Reusable secret scanning workflow](https://github.com/Felipemguerra/configs/blob/master/.github/workflows/secret-scan.yaml) | Called from `.github/workflows/security.yaml` |
+| Add a general CI security gate | [Reusable security baseline](https://github.com/Felipemguerra/configs/blob/master/.github/workflows/security-baseline.yaml) | Called from `.github/workflows/security.yaml` |
+| Scan source code with Semgrep CLI | [Reusable Semgrep workflow](https://github.com/Felipemguerra/configs/blob/master/.github/workflows/semgrep.yaml) | Called from `.github/workflows/security.yaml` |
 | Keep actions and npm packages current | [Dependabot config](https://github.com/Felipemguerra/configs/blob/master/dependabot/dependabot.yml) | `.github/dependabot.yml` |
-| Check secrets before they reach CI | [Pre-commit hooks](pre-commit/.pre-commit-config.yaml) | `.pre-commit-config.yaml` |
-| Build a smaller Node image as a non-root user | [Node Dockerfile](docker/node.Dockerfile) | Project `Dockerfile` |
-| Keep sensitive files out of image builds | [Docker ignore file](docker/.dockerignore) | Project `.dockerignore` |
-| Tune local secret-detection rules | [Gitleaks config](gitleaks/config.toml) | Project Gitleaks config path |
+| Check secrets before they reach CI | [Pre-commit hooks](https://github.com/Felipemguerra/configs/blob/master/pre-commit/.pre-commit-config.yaml) | `.pre-commit-config.yaml` |
+| Build a smaller Node image as a non-root user | [Node Dockerfile](https://github.com/Felipemguerra/configs/blob/master/docker/node.Dockerfile) | Project `Dockerfile` |
+| Keep sensitive files out of image builds | [Docker ignore file](https://github.com/Felipemguerra/configs/blob/master/docker/.dockerignore) | Project `.dockerignore` |
+| Tune local secret-detection rules | [Gitleaks config](https://github.com/Felipemguerra/configs/blob/master/gitleaks/config.toml) | Project Gitleaks config path |
 
 ## Reusable GitHub workflows
 
