@@ -33,8 +33,10 @@ For example, this runs all three scans for pull requests targeting `master`:
 name: Security scans
 
 on:
-	pull_request:
-		branches: [master]
+  pull_request:
+      branches:
+        - master
+      types: [opened, reopened]
 
 permissions:
 	contents: read
@@ -52,7 +54,6 @@ jobs:
 		uses: Felipemguerra/configs/.github/workflows/secret-scan.yaml@<reviewed-ref>
 		with:
 			configs-ref: <reviewed-ref>
-		secrets: inherit
 ```
 
 Replace `<reviewed-ref>` with an immutable commit SHA or a reviewed release tag
