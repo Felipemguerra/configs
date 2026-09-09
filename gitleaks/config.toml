@@ -3,11 +3,14 @@ title = "gitleaks config"
 [allowlist]
 description = "Exclude the gitleaks config file from all rules"
 paths = [
-    '''config/''',
-    '''.github/''',
     '''.git/''',
     '''package-lock.json''',
     '''.gitleaksignore''',
+    '''.husky''',
+    '''.astro''',
+    '''node_modules/''',
+    '''.wrangler''',
+    '''dist/''',
 ]
 
 [[rules]]
