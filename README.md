@@ -1,6 +1,6 @@
 # Security and AppSec configs
 
-> A small, practical toolbox for adding security checks to everyday software delivery.
+### A small, practical toolbox for adding security checks to everyday software delivery.
 
 This directory collects copyable configuration for the controls that tend to matter
 early in a project: finding leaked credentials, reviewing dependencies, scanning
