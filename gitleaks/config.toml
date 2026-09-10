@@ -88,15 +88,6 @@ secret_group = 1
 tags = ["pem","keys","demo"]
 # PEM bodies are already high-entropy; no entropy gating required here.
 entropy = 0.0
- 
-[[rules]]
-id = "password-like-re2"
-description = "Detect quoted/assigned password-like strings (approx 6-30 chars) containing at least one digit and one non-alphanumeric (RE2-compatible)."
-file = ".*"
-secret_group = 1
-regex = '''(?m)(?:['"=:\s]|^)([^\s'"=,:;]{6,30}?(?:[0-9][^\s'"=,:;]*[^A-Za-z0-9]|[^A-Za-z0-9][^\s'"=,:;]*[0-9])[^\s'"=,:;]*)(?:['"\s,;]|$)'''
-tags = ["password","re2","demo"]
-entropy = 3.5
 
 # This file has been auto-generated. Do not edit manually.
 # If you would like to contribute new rules, please use
