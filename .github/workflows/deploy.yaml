@@ -1,0 +1,151 @@
+name: Deploy and scan production
+
+on:
+  workflow_call:
+    inputs:
+      environment:
+        description: GitHub environment used for deployment secrets and approvals.
+        required: false
+        type: string
+        default: production
+      node-version:
+        description: Node.js version used to build the site.
+        required: false
+        type: string
+        default: '22'
+      check-command:
+        description: Command used to validate the production build.
+        required: false
+        type: string
+        default: npm run check
+      deploy-command:
+        description: Command used to deploy the production application.
+        required: false
+        type: string
+        default: npm run deploy
+      production-url:
+        description: Public URL scanned by OWASP ZAP after deployment.
+        required: true
+        type: string
+      artifact-retention-days:
+        description: Number of days to retain ZAP reports.
+        required: false
+        type: number
+        default: 90
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: production-deployment-${{ github.repository }}
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Deploy production application
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+
+    steps:
+      - name: Check out merged commit
+        uses: actions/checkout@v5
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: ${{ inputs.node-version }}
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Validate production build
+        run: ${{ inputs.check-command }}
+
+      - name: Deploy production application
+        run: ${{ inputs.deploy-command }}
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+
+  zap:
+    name: Scan production application
+    needs: deploy
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Run OWASP ZAP baseline scan
+        uses: zaproxy/action-baseline@v0.15.0
+        with:
+          target: ${{ inputs.production-url }}
+          fail_action: false
+          allow_issue_writing: false
+          artifact_name: zap-report
+
+      - name: Save ZAP reports
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: zap-report-${{ github.sha }}
+          retention-days: ${{ inputs.artifact-retention-days }}
+          path: |
+            report_html.html
+            report_md.md
+            report_json.json
+
+      - name: Count high and critical findings
+        id: findings
+        if: always()
+        env:
+          ZAP_REPORT: report_json.json
+        run: |
+          critical=0
+          high=$(jq '[.site[]?.alerts[]? | select(.riskcode == "3")] | length' "$ZAP_REPORT")
+          echo "critical=$critical" >> "$GITHUB_OUTPUT"
+          echo "high=$high" >> "$GITHUB_OUTPUT"
+          echo "ZAP findings: $critical critical, $high high"
+
+      - name: Publish findings to job summary
+        if: always()
+        env:
+          CRITICAL: ${{ steps.findings.outputs.critical }}
+          HIGH: ${{ steps.findings.outputs.high }}
+        run: |
+          {
+            echo "## OWASP ZAP production scan"
+            echo
+            echo "- Commit: \\`${GITHUB_SHA}\\`"
+            echo "- Critical findings: \\`${CRITICAL:-unknown}\\`"
+            echo "- High findings: \\`${HIGH:-unknown}\\`"
+            echo "- Full reports: workflow artifact \\`zap-report-${GITHUB_SHA}\\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Create GitHub issue for high or critical findings
+        if: steps.findings.outputs.critical != '0' || steps.findings.outputs.high != '0'
+        uses: actions/github-script@v8
+        env:
+          CRITICAL: ${{ steps.findings.outputs.critical }}
+          HIGH: ${{ steps.findings.outputs.high }}
+        with:
+          script: |
+            const title = `ZAP findings after production deployment ${context.sha.slice(0, 7)}`;
+            const body = [
+              `OWASP ZAP found **${process.env.CRITICAL} critical** and **${process.env.HIGH} high** findings after deploying \\`${context.sha}\\` to production.`,
+              '',
+              `Review the workflow artifact \\`zap-report-${context.sha}\\` for the HTML, Markdown, and JSON reports.`,
+              '',
+              `Workflow run: ${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`,
+            ].join('\\n');
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title,
+              body,
+            });
+
+      - name: Fail on high or critical findings
+        if: steps.findings.outputs.critical != '0' || steps.findings.outputs.high != '0'
+        run: |
+          echo "OWASP ZAP found high or critical findings. Review the saved report artifact and GitHub issue."
+          exit 1
