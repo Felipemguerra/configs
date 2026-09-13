@@ -17,6 +17,9 @@ pull request review.
 | Scan commits for credentials | [Reusable secret scanning workflow](https://github.com/securefdev/configs/blob/master/.github/workflows/secret-scan.yaml) | Called from `.github/workflows/security.yaml` |
 | Add a general CI security gate | [Reusable security baseline](https://github.com/securefdev/configs/blob/master/.github/workflows/security-baseline.yaml) | Called from `.github/workflows/security.yaml` |
 | Scan source code with Semgrep CLI | [Reusable Semgrep workflow](https://github.com/securefdev/configs/blob/master/.github/workflows/semgrep.yaml) | Called from `.github/workflows/security.yaml` |
+| Deploy a Node application to Cloudflare | [Reusable Wrangler deployment](https://github.com/securefdev/configs/blob/master/.github/workflows/wrangler-deploy.yaml) | Called from a production deployment workflow |
+| Run a passive production DAST scan | [Reusable ZAP baseline scan](https://github.com/securefdev/configs/blob/master/.github/workflows/zap-baseline-scan.yaml) | Called after deployment |
+| Run an active production DAST scan | [Reusable ZAP full scan](https://github.com/securefdev/configs/blob/master/.github/workflows/zap-full-scan.yaml) | Called on a schedule or after deployment |
 | Keep actions and npm packages current | [Dependabot config](https://github.com/securefdev/configs/blob/master/dependabot/dependabot.yml) | `.github/dependabot.yml` |
 | Check secrets before they reach CI | [Pre-commit hooks](https://github.com/securefdev/configs/blob/master/pre-commit/.pre-commit-config.yaml) | `.pre-commit-config.yaml` |
 | Build a smaller Node image as a non-root user | [Node Dockerfile](https://github.com/securefdev/configs/blob/master/docker/node.Dockerfile) | Project `Dockerfile` |
@@ -25,9 +28,9 @@ pull request review.
 
 ## Reusable GitHub workflows
 
-The workflows in `actions/` are reusable workflows. A consuming repository owns
+The workflows in `.github/workflows/` are reusable workflows. A consuming repository owns
 the trigger and calls the central workflows with a normal job-level `uses` entry.
-For example, this runs all three scans for pull requests targeting `master`:
+For example, this runs the three CI scans for pull requests targeting `master`:
 
 ```yaml
 name: Security scans
@@ -71,6 +74,29 @@ The Semgrep workflow uses Semgrep's native CLI and uploads SARIF results to GitH
 code scanning. Its default registry ruleset is `p/default`; callers can provide a
 different registry ruleset or a configuration path through the `config` input.
 
+## Production deployment and DAST
+
+The [Wrangler deployment workflow](.github/workflows/wrangler-deploy.yaml) builds and
+deploys a Node application using npm and Cloudflare Wrangler. It accepts optional
+`environment`, `node-version`, `check-command`, and `deploy-command` inputs, and
+requires `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` secrets. The default
+validation and deployment commands are `npm run check` and `npm run deploy`.
+
+The [ZAP baseline workflow](.github/workflows/zap-baseline-scan.yaml) and [ZAP full
+scan workflow](.github/workflows/zap-full-scan.yaml) both accept a required
+`production-url` and an optional `artifact-retention-days` input, defaulting to 90
+days. The baseline scan is suitable for a deployment check; the full scan performs
+an active scan and is better suited to a scheduled workflow. Both scans:
+
+- retain HTML, Markdown, and JSON reports as workflow artifacts;
+- count critical and high findings from the JSON report and publish the counts to the
+	job summary; and
+- create a GitHub issue and fail the job when either count is nonzero.
+
+Set `fail_action: false` on the ZAP action when the workflow should always reach the
+reporting and issue-creation steps. The final gate is responsible for failing after
+the reports have been saved.
+
 ## Copyable configuration
 
 The workflows can still be copied when a repository needs to customize them locally.
@@ -79,15 +105,20 @@ secret scan and security baseline:
 
 ```sh
 mkdir -p .github/workflows
-cp actions/secret-scan.yaml .github/workflows/secret-scan.yaml
-cp actions/security-baseline.yaml .github/workflows/security-baseline.yaml
+cp .github/workflows/secret-scan.yaml .github/workflows/secret-scan.yaml
+cp .github/workflows/security-baseline.yaml .github/workflows/security-baseline.yaml
 cp -R gitleaks .
 ```
 
 Then add the desired repository triggers, commit the files, and open a pull request.
 The baseline runs dependency review for pull requests, scans the repository with
-Trivy, and uploads SARIF results to GitHub code scanning. A copied secret workflow
+Trivy, and uploads the SARIF report as a workflow artifact. A copied secret workflow
 should use the local `gitleaks/config.toml` path.
+
+When copying the ZAP workflows, keep the report artifact and finding-count steps
+together with the scanner action. The caller must provide `production-url`; place
+the baseline scan after deployment and trigger the full scan from a scheduled or
+other controlled workflow.
 
 For Dependabot, copy the file to the exact location GitHub expects:
 
@@ -127,7 +158,7 @@ Linux capabilities, resource limits, and a network policy where supported.
 ## Repository layout
 
 ```text
-actions/       GitHub Actions workflows
+.github/       Reusable GitHub Actions workflows
 dependabot/    Dependency update configuration
 docker/        Container build defaults
 gitleaks/      Secret-detection rules
