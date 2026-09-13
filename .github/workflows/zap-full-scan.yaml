@@ -1,0 +1,103 @@
+name: Full OWASP ZAP scan
+
+on:
+  workflow_call:
+    inputs:
+      production-url:
+        description: Public URL scanned by the active OWASP ZAP scan.
+        required: true
+        type: string
+      artifact-retention-days:
+        description: Number of days to retain ZAP reports.
+        required: false
+        type: number
+        default: 90
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: zap-full-scan-${{ github.repository }}
+  cancel-in-progress: false
+
+jobs:
+  zap:
+    name: Full production scan
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Run OWASP ZAP full scan
+        uses: zaproxy/action-full-scan@v0.12.0
+        with:
+          target: ${{ inputs.production-url }}
+          fail_action: false
+          allow_issue_writing: false
+          artifact_name: zap-full-report
+
+      - name: Save ZAP reports
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: zap-full-report-${{ github.sha }}
+          retention-days: ${{ inputs.artifact-retention-days }}
+          path: |
+            report_html.html
+            report_md.md
+            report_json.json
+
+      - name: Count high and critical findings
+        id: findings
+        if: always()
+        env:
+          ZAP_REPORT: report_json.json
+        run: |
+          critical=0
+          high=$(jq '[.site[]?.alerts[]? | select(.riskcode == "3")] | length' "$ZAP_REPORT")
+          echo "critical=$critical" >> "$GITHUB_OUTPUT"
+          echo "high=$high" >> "$GITHUB_OUTPUT"
+          echo "ZAP findings: $critical critical, $high high"
+
+      - name: Publish findings to job summary
+        if: always()
+        env:
+          CRITICAL: ${{ steps.findings.outputs.critical }}
+          HIGH: ${{ steps.findings.outputs.high }}
+        run: |
+          {
+            echo "## OWASP ZAP full production scan"
+            echo
+            echo "- Commit: \\`${GITHUB_SHA}\\`"
+            echo "- Critical findings: \\`${CRITICAL:-unknown}\\`"
+            echo "- High findings: \\`${HIGH:-unknown}\\`"
+            echo "- Full reports: workflow artifact \\`zap-full-report-${GITHUB_SHA}\\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Create GitHub issue for high or critical findings
+        if: steps.findings.outputs.critical != '0' || steps.findings.outputs.high != '0'
+        uses: actions/github-script@v8
+        env:
+          CRITICAL: ${{ steps.findings.outputs.critical }}
+          HIGH: ${{ steps.findings.outputs.high }}
+        with:
+          script: |
+            const title = `ZAP full-scan findings ${context.sha.slice(0, 7)}`;
+            const body = [
+              `The scheduled OWASP ZAP full scan found **${process.env.CRITICAL} critical** and **${process.env.HIGH} high** findings for \\`${context.sha}\\`.`,
+              '',
+              `Review the workflow artifact \\`zap-full-report-${context.sha}\\` for the HTML, Markdown, and JSON reports.`,
+              '',
+              `Workflow run: ${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`,
+            ].join('\\n');
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title,
+              body,
+            });
+
+      - name: Fail on high or critical findings
+        if: steps.findings.outputs.critical != '0' || steps.findings.outputs.high != '0'
+        run: |
+          echo "OWASP ZAP found high or critical findings. Review the saved report artifact and GitHub issue."
+          exit 1
