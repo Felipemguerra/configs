@@ -24,7 +24,6 @@ concurrency:
 jobs:
   zap:
     name: Scan production application
-    needs: deploy
     runs-on: ubuntu-latest
 
     steps:
